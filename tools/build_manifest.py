@@ -36,6 +36,7 @@ import os
 import re
 import sys
 from datetime import datetime, timezone
+from typing import Optional
 
 # طولُ البصمة في الرابط. ثمانيةُ أرقامٍ ستّة عشرية = أربعة مليارات
 # احتمال؛ واحتمالُ أن يتغيّر ملفٌّ فتبقى بصمتُه كما هي مهمَلٌ عمليًّا،
@@ -95,7 +96,7 @@ def scan_pages(root: str) -> dict:
     return out
 
 
-def read_version(explicit: str | None) -> str:
+def read_version(explicit: Optional[str]) -> str:
     if explicit:
         return explicit
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

@@ -106,6 +106,30 @@ ayah-audio/by-id/1.mp3           بالترتيب بين الـ6236، كما ت�
 
 الاسم الثاني وصلةٌ صلبة إلى الأول، لا ترميزٌ ثانٍ.
 
+## ما تحتاجه الأدوات
+
+| الأداة | بايثون | ffmpeg |
+|---|---|---|
+| `build_manifest.py` · `export_recitation.py` · `fingerprint_audio.py` | **3.6+** | لا يحتاج |
+| `snap_cuts.py` · `split_ayahs.py` | **3.6+** | **نعم** |
+
+3.6 عمدًا: هذه الأدوات تُشغَّل على الخادم الذي عليه الصوت، والاستضافةُ
+المشتركة تبقى على بايثون قديم — و3.6 هو ما وجدناه على خادم هذه التلاوة.
+
+**ولا ffmpeg على الاستضافة المشتركة ولا صلاحيةَ تنصيبه.** وليس ذلك مانعًا:
+يُنزَّل بناءٌ ساكن في منزلك ويُشار إليه:
+
+```bash
+mkdir -p ~/bin && cd ~/bin
+curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz \
+  | tar xJ --strip-components=1 --wildcards '*/ffmpeg'
+chmod +x ffmpeg && ./ffmpeg -version | head -1
+
+python3 snap_cuts.py data/ayah-timings.json khatma --ffmpeg ~/bin/ffmpeg -o out.json
+```
+
+فتُمسَح السكتاتُ حيث الصوتُ نفسه، ولا يُنزَّل منه ميغابايت واحد.
+
 ## الفهرس الحيّ — كيف يصل تحسينُ الصوت إلى الجميع
 
 **اقرأ هذا الفهرس، ولا تؤلّف روابط الصوت بنفسك:**

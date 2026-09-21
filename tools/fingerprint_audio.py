@@ -29,6 +29,10 @@ import os
 import re
 import subprocess
 import sys
+from typing import List, Optional, Tuple
+
+# يُبدَّل بـ--ffmpeg؛ وغيابُه لا يُعطّل شيئًا: المُدَد وحدها تسقط.
+FFMPEG = "ffmpeg"
 
 FIELDS = ["page", "bytes", "sha256", "duration_ms"]
 DURATION_RE = re.compile(r"Duration:\s*(\d+):(\d\d):(\d\d\.\d+)")
@@ -44,15 +48,17 @@ def sha256(path: str) -> str:
     return h.hexdigest()
 
 
-def duration_ms(path: str) -> int | None:
+def duration_ms(path: str) -> Optional[int]:
     """مدّةُ الملف بالملّي ثانية، أو None إن لم يكن ffmpeg موجودًا.
 
     ليست شرطًا: الحجمُ والبصمةُ يكفيان للكشف عن التغيّر، والمدّةُ تُقرأ
     بالعين فتقول ما الذي تغيّر — أطال الملفُّ أم قصر.
     """
     try:
-        out = subprocess.run(["ffmpeg", "-nostdin", "-i", path, "-f", "null", "-"],
-                             capture_output=True, text=True).stderr
+        out = subprocess.run([FFMPEG, "-nostdin", "-i", path, "-f", "null", "-"],
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE,
+                             universal_newlines=True).stderr
     except FileNotFoundError:
         return None
     m = DURATION_RE.search(out)
@@ -62,7 +68,7 @@ def duration_ms(path: str) -> int | None:
     return int(round((int(h) * 3600 + int(mi) * 60 + float(s)) * 1000))
 
 
-def pages_in(folder: str) -> list[tuple[int, str]]:
+def pages_in(folder: str) -> List[Tuple[int, str]]:
     out = []
     for name in os.listdir(folder):
         stem, ext = os.path.splitext(name)
@@ -169,6 +175,7 @@ def main() -> int:
     m = sub.add_parser("make", help="اصنع أثر الصوت الحالي")
     m.add_argument("audio", help="مجلد ملفات الأوجه")
     m.add_argument("-o", "--out", default="data/audio-fingerprint.csv")
+    m.add_argument("--ffmpeg", default="ffmpeg", help="مسارُ ffmpeg إن لم يكن في PATH")
     m.add_argument("--quick", action="store_true",
                    help="حجمٌ بلا بصمة — أسرع، وأضعفُ كشفًا")
     m.set_defaults(fn=make)
@@ -179,6 +186,8 @@ def main() -> int:
     v.set_defaults(fn=verify)
 
     args = ap.parse_args()
+    global FFMPEG
+    FFMPEG = getattr(args, "ffmpeg", "ffmpeg")
     return args.fn(args)
 
 

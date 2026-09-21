@@ -43,8 +43,10 @@ import csv
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+from typing import Dict, List, Optional, Tuple
 
 # عتبةُ ما يُعَدّ صمتًا. −35dB لا −50: التسجيل فيه أرضيةُ ضجيجٍ خفيفة،
 # وعتبةٌ أشدّ صرامةً لا ترى السكتات القصيرة بين الآيات أصلًا.
@@ -59,6 +61,11 @@ WINDOW = 1.5
 # وتمهيدٌ قبل التي تليها حتى لا يُقتطع أولُ حرفٍ منها.
 LEAD = 0.10
 TAIL = 0.30
+
+# مسارُ ffmpeg. يُبدَّل بـ--ffmpeg: الاستضافةُ المشتركة لا ffmpeg
+# فيها ولا صلاحيةَ تنصيبٍ عليها، وإنما يُنزَّل بناءٌ ساكن في المنزل
+# ويُشار إليه — انظر آخر هذا الملف.
+FFMPEG = "ffmpeg"
 
 SILENCE_RE = re.compile(r"silence_(start|end):\s*(-?[\d.]+)")
 DURATION_RE = re.compile(r"Duration:\s*(\d+):(\d\d):(\d\d\.\d+)")
@@ -75,12 +82,13 @@ def scan(audio: str, noise: str, min_silence: float):
     يُرجِع (السكتات، المدّة أو None).
     """
     out = subprocess.run(
-        ["ffmpeg", "-nostdin", "-i", audio, "-af",
+        [FFMPEG, "-nostdin", "-i", audio, "-af",
          f"silencedetect=noise={noise}:d={min_silence}", "-f", "null", "-"],
-        capture_output=True, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        universal_newlines=True,
     ).stderr
 
-    spans: list[tuple[float, float]] = []
+    spans: List[Tuple[float, float]] = []
     start = None
     for kind, val in SILENCE_RE.findall(out):
         t = float(val)
@@ -102,7 +110,7 @@ def scan(audio: str, noise: str, min_silence: float):
     return spans, total
 
 
-def pick(t: float, spans: list[tuple[float, float]], window: float):
+def pick(t: float, spans: List[Tuple[float, float]], window: float):
     """السكتةُ التي يقع فيها هذا الحدّ، أو أقربُها إليه داخل السعة.
 
     المحتوِية أولًا: إن وقع التقديرُ داخل سكتةٍ فهي المقصودة يقينًا ولا
@@ -190,7 +198,7 @@ def guard_only(args) -> int:
         doc = json.load(f)
     pages = {int(k): v for k, v in (doc.get("pages") or {}).items() if str(k).isdigit()}
 
-    out_pages: dict[str, list[dict]] = {}
+    out_pages: Dict[str, List[dict]] = {}
     guarded = tight = 0
     for page in sorted(pages):
         rows = [r for r in (pages[page] or [])
@@ -242,6 +250,8 @@ def main() -> int:
     ap.add_argument("--window", type=float, default=WINDOW)
     ap.add_argument("--lead", type=float, default=LEAD)
     ap.add_argument("--tail", type=float, default=TAIL)
+    ap.add_argument("--ffmpeg", default="ffmpeg",
+                    help="مسارُ ffmpeg إن لم يكن في PATH — لاستضافةٍ بلا صلاحيات")
     ap.add_argument("--selftest", action="store_true", help="اختبر الحساب ولا تمسح صوتًا")
     ap.add_argument("--guard", type=float, metavar="SECONDS",
                     help="بلا صوت: اجعل النهاية بدايةَ التالية ناقصَ هذا القدر")
@@ -256,8 +266,12 @@ def main() -> int:
     if not args.audio:
         ap.error("يلزم AUDIO_DIR (أو --guard للعلاج المؤقّت بلا صوت)")
 
-    if subprocess.call(["which", "ffmpeg"], stdout=subprocess.DEVNULL) != 0:
-        sys.exit("ffmpeg غير مثبَّت. جرّب: brew install ffmpeg")
+    global FFMPEG
+    FFMPEG = args.ffmpeg
+    if not shutil.which(FFMPEG):
+        sys.exit(f"لا أجد {FFMPEG}. على الماك: brew install ffmpeg.\n"
+                 "وعلى استضافةٍ مشتركة بلا صلاحيات: نزّل بناءً ساكنًا في\n"
+                 "منزلك وأشِر إليه بـ--ffmpeg ~/bin/ffmpeg")
 
     with open(args.timings, encoding="utf-8") as f:
         doc = json.load(f)
@@ -273,10 +287,10 @@ def main() -> int:
                 want.add(int(part))
         pages = {p: v for p, v in pages.items() if p in want}
 
-    out_pages: dict[str, list[dict]] = {}
-    report: list[dict] = []
+    out_pages: Dict[str, List[dict]] = {}
+    report: List[dict] = []
     moved = unmoved = absent = 0
-    shifts: list[float] = []
+    shifts: List[float] = []
 
     for n, page in enumerate(sorted(pages), 1):
         rows = [r for r in (pages[page] or [])
@@ -295,7 +309,7 @@ def main() -> int:
         spans, total = scan(audio, args.noise, args.min_silence)
 
         starts = [float(r["start"]) for r in rows]
-        ends: list[float | None] = [None] * len(rows)
+        ends: List[Optional[float]] = [None] * len(rows)
 
         # كلُّ حدٍّ داخليّ ينقل طرفين: نهايةَ ما قبله وبدايةَ ما بعده.
         for i in range(1, len(rows)):
@@ -307,16 +321,16 @@ def main() -> int:
             }
             if span is None:
                 unmoved += 1
-                row |= {"snapped_start": round(t, 3), "shift": 0.0,
-                        "silence": "", "flag": "لا سكتة قريبة"}
+                row.update({"snapped_start": round(t, 3), "shift": 0.0,
+                            "silence": "", "flag": "لا سكتة قريبة"})
             else:
                 moved += 1
                 shifts.append(new_start - t)
                 ends[i - 1] = round(prev_end, 3)
                 starts[i] = round(new_start, 3)
-                row |= {"snapped_start": round(new_start, 3),
-                        "shift": round(new_start - t, 3),
-                        "silence": f"{span[0]:.2f}–{span[1]:.2f}", "flag": ""}
+                row.update({"snapped_start": round(new_start, 3),
+                            "shift": round(new_start - t, 3),
+                            "silence": "%.2f–%.2f" % span, "flag": ""})
             report.append(row)
 
         # أولُ آيةٍ في الوجه: تُقرَّب إلى نهاية سكتة الصدر إن وُجدت،
