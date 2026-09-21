@@ -60,10 +60,22 @@ def build_segments(pages, durations=None):
                 continue
             seen.add((surah, ayah))
 
-            end = None
-            if i + 1 < len(rows) and rows[i + 1].get("start") is not None:
+            # النهايةُ المذكورة صراحةً تُقدَّم على بداية التي تليها.
+            #
+            # وبدايةُ التالية نهايةٌ رديئة: هي تقديرُ المحاذاة لموضع أول
+            # كلمةٍ منها، وخطؤه أعشارُ ثانية. فإن تأخّر بقي في ذيل هذه
+            # الآية أوّلُ حرفٍ من تلك، فإذا تُليتا متتابعتين في تطبيقٍ
+            # يقصّ عليهما سُمع ذلك الحرف مرّتين — وهو ما وقع فعلًا. أما
+            # في تطبيق المصحف فالرقم يحرّك تظليلًا والصوتُ متّصلٌ لا
+            # يُقَصّ، فلا يُحَسّ منه شيء.
+            #
+            # وtools/snap_cuts.py يمسح الصوت فينقل كل حدٍّ إلى السكتة
+            # التي بين الآيتين ويكتب `end` صريحةً، فتبقى بين الملفّين
+            # فرجةٌ لا نطقَ فيها.
+            end = row.get("end")
+            if end is None and i + 1 < len(rows) and rows[i + 1].get("start") is not None:
                 end = rows[i + 1]["start"]
-            elif durations and page in durations:
+            if end is None and durations and page in durations:
                 end = durations[page]
 
             out.append({
@@ -144,8 +156,8 @@ def main():
     json_path = os.path.join(args.out, "segments.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump({
-            "reciter": "Dr. Ibrahim Hassan",
-            "reciter_ar": "د. إبراهيم حسن",
+            "reciter": "Ibrahim Hassan Mutawally",
+            "reciter_ar": "إبراهيم حسن مطاولي",
             "mushaf": "Madani (Hafs)",
             "audio_layout": "one file per mushaf page, 1..604",
             "time_unit": "ms, relative to the start of each audio_file",

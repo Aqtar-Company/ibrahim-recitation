@@ -56,11 +56,58 @@ https://ibrahimquran.com/quran/pages/{s} Page {k}.mp3  وجهٌ داخل سور�
 - `start` = ثوانٍ من **مبدأ ملف ذلك الوجه**، لا من مبدأ السورة ولا المصحف
 - الترتيب داخل الوجه تصاعديّ دائمًا (محقَّق: 0 خللٍ في 535 وجهًا)
 
-### القاعدتان اللتان تحلّان كل شيء
+### حدود الآيات — اقرأ هذا قبل أن تقصّ
+
+كان مكتوبًا هنا: «نهاية الآية = مبدأ التي تليها في الوجه نفسه». وهي قاعدةٌ
+خاطئة، وقد أوقعت أوّل من دمج هذه التلاوة في عيبٍ مسموع. هذا شرحُه:
+
+`start` ليس موضعًا مقيسًا بل **تقديرًا**. استُخرج بالمحاذاة القسرية — تفريغٌ
+بـ faster-whisper ثم مطابقةٌ بالنصّ — وخطؤه في حدود العُشر إلى ثلاثة أعشار
+الثانية، وأسوأُ ما يكون في الحروف الخفيفة القصيرة: واو العطف، وفائه، وأوائل
+السور.
+
+وهذا القدر **لا يُحَسّ** في تطبيق المصحف نفسه: الرقم هناك يحرّك تظليلًا،
+والصوت ملفُ وجهٍ واحدٍ متّصلٌ لا يُقَصّ. ولهذا بقي العيب مستورًا حتى خرجت
+التلاوة إلى تطبيقٍ آخر.
+
+لكنه **يُسمَع** حين يُقَصّ عليه أو يُوقَف عنده. فإن تأخّر التقديرُ عن النطق
+الحقيقيّ — وهو الغالب — بقي في ذيل الآية أوّلُ حرفٍ من التي بعدها:
 
 ```
-نهاية الآية = مبدأ التي تليها في الوجه نفسه
-آخرُ آيةٍ في الوجه = تنتهي بانتهاء الملف
+الملف            ‹… إنّ ربَّك لسريعُ العقاب›  ⟨سكتة⟩  ‹وَإنّه لغفورٌ رحيم›
+                                          ↑ النطق      ↑ تقدير whisper (متأخّر)
+قصٌّ عند التقدير  [───────── الآية ن ─────────‹وَ›]  [‹وَ›إنّه …]
+ما يُسمَع                                  … العقاب  وَ  وَإنّه لغفورٌ رحيم
+```
+
+**القاعدة الصحيحة:** الحدُّ هو السكتة التي يقف فيها القارئ بين الآيتين، لا
+تقديرُ المحاذاة. وهي موجودةٌ في الصوت نفسه:
+
+```
+نهاية الآية    = مبدأ السكتة + ذيلٌ يسير (~0.30s)
+بداية التالية  = منتهى السكتة − تمهيدٌ يسير (~0.10s)
+آخرُ آيةٍ في الوجه = تنتهي بانتهاء الملف (بعد تقليم صمت ذيله)
+```
+
+فتبقى بين الملفّين فرجةٌ لا نطقَ فيها، ولا يُقتطع من أوّل آيةٍ حرف.
+
+`tools/snap_cuts.py` يفعل هذا: يمسح كل وجهٍ مرّةً بـ ffmpeg، وينقل كل حدٍّ
+إلى أقرب سكتةٍ إليه، ويكتب `end` صريحةً لكل آية:
+
+```bash
+python3 tools/snap_cuts.py data/ayah-timings.json AUDIO_DIR \
+        -o data/ayah-timings.json --report cuts-report.csv
+python3 tools/export_recitation.py data/ayah-timings.json -o data/
+```
+
+والحدُّ الذي لا تُوجَد حوله سكتةٌ يُترك كما هو ويُذكَر في التقرير: **تلك
+وحدها ما يستحقّ السماع بالأذن**، لا الستّة آلاف.
+
+ولمن لا يملك الصوت الآن، تخفيفٌ مؤقّت لا يحتاج إلى مسح — يُبعد النهاية عن
+بداية التالية بقَدْرٍ ثابت:
+
+```bash
+python3 tools/snap_cuts.py data/ayah-timings.json --guard 0.15 -o out.json
 ```
 
 ### مثالٌ حقيقي — آية الكرسي (2:255)
@@ -68,18 +115,25 @@ https://ibrahimquran.com/quran/pages/{s} Page {k}.mp3  وجهٌ داخل سور�
 ```
 الوجه   42
 المبدأ  102.48s
-النهاية 181.82s   (= مبدأ 2:256)
+النهاية 181.82s   ← تقديرٌ، لا موضعٌ مقيس: هي مبدأ 2:256 وقد يتأخّر
 الرابط  https://ibrahimquran.com/quran/khatma/42.mp3
 ```
 
 ### التنفيذ
 
 ```ts
-type Timings = { pages: Record<string, { key: string; start: number }[]> };
+type Row = { key: string; start: number; end?: number | null };
+type Timings = { pages: Record<string, Row[]> };
 
 const BASE = 'https://ibrahimquran.com/quran/';
 
-/** موضع الآية: ملفُها ومبدؤها ونهايتُها. null إن لم تُحاذَ بعد. */
+/**
+ * موضع الآية: ملفُها ومبدؤها ونهايتُها. null إن لم تُحاذَ بعد.
+ *
+ * يُقرَأ `end` إن وُجد — وهو موضعٌ داخل السكتة، كتبه snap_cuts.py.
+ * والرجوعُ إلى مبدأ التالية آخرُ ما يُصار إليه: ذاك تقديرٌ قد يتأخّر
+ * فيُسمَع أوّلُ حرفٍ من التالية في ذيل هذه. اقرأ «حدود الآيات» أعلاه.
+ */
 function locate(t: Timings, surah: number, ayah: number) {
   const key = `${surah}:${ayah}`;
   for (const [page, rows] of Object.entries(t.pages)) {
@@ -89,7 +143,7 @@ function locate(t: Timings, surah: number, ayah: number) {
       url: `${BASE}khatma/${page}.mp3`,
       start: rows[i].start,
       // null تعني «إلى آخر الملف» — لا تستبدلها برقمٍ مخترَع.
-      end: i + 1 < rows.length ? rows[i + 1].start : null,
+      end: rows[i].end ?? (i + 1 < rows.length ? rows[i + 1].start : null),
     };
   }
   return null;
@@ -139,6 +193,10 @@ if (now >= end ?? el.duration) {
 brew install ffmpeg      # أو apt install ffmpeg
 
 rsync -avz -e "ssh -p PORT" USER@HOST:~/…/quran/khatma/ ./khatma/
+
+# أولًا: انقل الحدود إلى السكتات. القصُّ بلا هذا يُسمع أوّلَ حرفٍ مرّتين.
+python3 tools/snap_cuts.py data/ayah-timings.json ./khatma \
+        -o data/ayah-timings.json --report cuts-report.csv
 
 python3 tools/split_ayahs.py data/ayah-timings.json ./khatma --dry-run
 python3 tools/split_ayahs.py data/ayah-timings.json ./khatma -o ./ayah-audio

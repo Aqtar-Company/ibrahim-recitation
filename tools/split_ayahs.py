@@ -61,8 +61,19 @@ def plan(timings_path):
         for i, row in enumerate(rows):
             surah, ayah = (int(x) for x in row["key"].split(":"))
             start = float(row["start"])
-            nxt = rows[i + 1]["start"] if i + 1 < len(rows) else None
-            dur = None if nxt is None else round(float(nxt) - start, 3)
+            # النهايةُ المذكورة صراحةً تُقدَّم على بداية التي تليها.
+            #
+            # القصُّ إلى بداية التالية يجعل ذيلَ كل ملفٍّ أوّلَ حرفٍ من
+            # الآية التي بعده كلّما تأخّر تقديرُ المحاذاة — وهو يتأخّر
+            # بأعشار الثانية، وأشدُّ ذلك في الواو والفاء لخفّتهما. فإذا
+            # تُليت الآيتان متتابعتين سُمع الحرف مرّتين.
+            #
+            # وtools/snap_cuts.py ينقل الحدَّ إلى السكتة التي بينهما
+            # ويكتب `end`، فيُقَصّ إليها لا إلى تقديرٍ.
+            end = row.get("end")
+            if end is None and i + 1 < len(rows):
+                end = rows[i + 1]["start"]
+            dur = None if end is None else round(float(end) - start, 3)
             # مدّةٌ صفرٌ أو سالبة علامةُ محاذاةٍ فاسدة، ولا تُقَصّ.
             if dur is not None and dur <= 0:
                 print(f"::تحذير:: {surah}:{ayah} في الوجه {page} مدّتها {dur}s — تُخطّى",
