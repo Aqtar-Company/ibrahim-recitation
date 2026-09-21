@@ -1,4 +1,4 @@
-# تلاوة الشيخ إبراهيم حسن مطاولي — توقيتات الآيات
+# تلاوة د. إبراهيم حسن — توقيتات الآيات
 
 بيانات وأدوات لدمج هذه التلاوة في تطبيق مصحف: متى تبدأ كل آية ومتى تنتهي،
 وأداةٌ تقصّ التلاوة ملفًا لكل آية كما تُوزَّع تلاوات القرّاء.
@@ -125,7 +125,7 @@ ayah-audio/by-id/1.mp3           بالترتيب بين الـ6236، كما ت�
 
 ## English
 
-Ayah-level timings for the recitation of **Sheikh Ibrahim Hassan Mutawally**,
+Ayah-level timings for the recitation of **Dr. Ibrahim Hassan**,
 plus tools to export it as one file per ayah for inclusion in a mushaf app.
 
 The audio itself is not in this repository — it lives on ibrahimquran.com and

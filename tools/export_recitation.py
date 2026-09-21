@@ -144,8 +144,8 @@ def main():
     json_path = os.path.join(args.out, "segments.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump({
-            "reciter": "Ibrahim Hassan Mutawally",
-            "reciter_ar": "إبراهيم حسن مطاولي",
+            "reciter": "Dr. Ibrahim Hassan",
+            "reciter_ar": "د. إبراهيم حسن",
             "mushaf": "Madani (Hafs)",
             "audio_layout": "one file per mushaf page, 1..604",
             "time_unit": "ms, relative to the start of each audio_file",
