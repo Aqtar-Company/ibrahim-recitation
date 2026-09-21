@@ -1,0 +1,6 @@
+khatma/
+surah/
+pages/
+ayah-audio/
+*.mp3
+__pycache__/
