@@ -226,7 +226,7 @@ def guard_only(args) -> int:
             "note": (f"نهاياتٌ مسحوبةٌ عن بداية التالية بـ{args.guard}s — علاجٌ "
                      "مؤقّت بلا مسحِ صوت. الصواب tools/snap_cuts.py بالصوت."),
             "pages": out_pages,
-        }, f, ensure_ascii=False)
+        }, f, ensure_ascii=False, indent=1)
 
     total = guarded + tight
     print(f"حدود عُولجت      : {total}")
@@ -356,7 +356,7 @@ def main() -> int:
                      "انظر tools/snap_cuts.py. النهاية لم تعد بدايةَ التالية، "
                      "فبينهما فرجةٌ لا يُسمَع فيها حرفٌ مرّتين."),
             "pages": out_pages,
-        }, f, ensure_ascii=False)
+        }, f, ensure_ascii=False, indent=1)
 
     total_b = moved + unmoved
     print(f"\nحدود عُولجت      : {total_b}")

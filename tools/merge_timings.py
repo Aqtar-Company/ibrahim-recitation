@@ -108,7 +108,7 @@ def main():
 
     doc_a["pages"] = merged
     with open(args.out, "w", encoding="utf-8") as f:
-        json.dump(doc_a, f, ensure_ascii=False)
+        json.dump(doc_a, f, ensure_ascii=False, indent=1)
     print("كُتب في %s" % args.out)
     return 0
 
