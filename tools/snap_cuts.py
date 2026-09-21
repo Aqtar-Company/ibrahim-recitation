@@ -35,7 +35,7 @@
     python3 tools/snap_cuts.py TIMINGS AUDIO_DIR -o snapped.json --report r.csv
     python3 tools/snap_cuts.py --selftest      # لا يحتاج صوتًا ولا ffmpeg
 
-يحتاج ffmpeg:  brew install ffmpeg
+المعايرة أولًا إن كان التسجيل مضغوطًا:\n\n    python3 tools/snap_cuts.py TIMINGS AUDIO_DIR --tune\n\nيحتاج ffmpeg:  brew install ffmpeg
 """
 
 import argparse
@@ -141,6 +141,18 @@ def snap(t: float, spans, window: float, lead: float, tail: float):
     return s0 + min(tail, gap * 0.4), s1 - min(lead, gap * 0.4), span
 
 
+def parse_pages(spec):
+    """«523-525» أو «1,5,9» إلى قائمة أرقام."""
+    want = []
+    for part in spec.split(","):
+        if "-" in part:
+            a, b = part.split("-")
+            want.extend(range(int(a), int(b) + 1))
+        else:
+            want.append(int(part))
+    return want
+
+
 def selftest() -> int:
     """اختبارُ الحساب وحده — بسكتاتٍ مفروضة، بلا صوتٍ ولا ffmpeg."""
     fails = 0
@@ -181,6 +193,86 @@ def selftest() -> int:
 
     print(f"\n{'كلّها سليمة' if not fails else f'{fails} إخفاق'}")
     return 1 if fails else 0
+
+
+# ما يُجرَّب حين تُطلَب المعايرة. العتبةُ تختلف باختلاف ما لقي
+# التسجيلُ من معالجة: تسجيلٌ مضغوطٌ مطبَّعٌ يرتفع هادئُه إلى −18dB،
+# وآخرُ خامٌ يبقى هادئُه دون −40. ولا يُخمَّن: يُقاس.
+TUNE_NOISE = ["-12dB", "-15dB", "-18dB", "-20dB", "-22dB", "-25dB", "-30dB", "-35dB"]
+TUNE_DURS = [0.03, 0.05, 0.08, 0.12, 0.20]
+
+
+def tune(args):
+    """يجرّب العتبات والمُدَد ويقيس أيُّها يُصيب حدود الآيات المعروفة.
+
+    المقياسُ ليس عددَ السكتات — تسجيلٌ يُطلِق مئتين منها عند عتبةٍ
+    عالية لا يعني أنها حدودُ آيات، إنما هي فجواتُ المقاطع داخل الكلمة.
+    المقياسُ كم حدًّا من حدود الآيات وجد لنفسه سكتةً قريبة.
+
+    ومسحةٌ واحدة لكل عتبة لا لكل تركيبة: المدّةُ الدنيا تصفيةٌ على ما
+    خرج، لا معاملُ مسحٍ جديد. فثماني مسحاتٍ للوجه بدل أربعين.
+    """
+    with open(args.timings, encoding="utf-8") as f:
+        pages = {int(k): v for k, v in
+                 (json.load(f).get("pages") or {}).items() if str(k).isdigit()}
+
+    sample = sorted(pages)[:: max(1, len(pages) // args.tune_pages)][:args.tune_pages]
+    if args.pages:
+        sample = [p for p in parse_pages(args.pages) if p in pages]
+    print("يُعايَر على %d وجهًا: %s\n" % (len(sample), sample))
+
+    # [عتبة][مدّة] -> (أصاب، جملة)
+    score = {}
+    for page in sample:
+        audio = os.path.join(args.audio, "%d.mp3" % page)
+        if not os.path.exists(audio):
+            continue
+        rows = [r for r in (pages[page] or [])
+                if r.get("key") and r.get("start") is not None]
+        bounds = [float(r["start"]) for r in rows[1:]]
+        if not bounds:
+            continue
+        for noise in TUNE_NOISE:
+            # أدقُّ مدّةٍ مرّةً واحدة، ثم تُصفّى لكل مدّة.
+            spans_all, _ = scan(audio, noise, min(TUNE_DURS))
+            for d in TUNE_DURS:
+                spans = [s for s in spans_all if s[1] - s[0] >= d]
+                hit = sum(1 for t in bounds
+                          if pick(t, spans, args.window) is not None)
+                a, b = score.get((noise, d), (0, 0))
+                score[(noise, d)] = (a + hit, b + len(bounds))
+        print("  … %d" % page, flush=True)
+
+    if not score:
+        sys.exit("لم يُقرأ وجهٌ واحد — تحقّق من مجلد الصوت.")
+
+    print("\nنسبةُ حدود الآيات التي وجدت سكتةً قريبة:\n")
+    head = "  عتبة \\ مدّة "
+    print(head + "".join("%8.2fs" % d for d in TUNE_DURS))
+    cands = []
+    for ni, noise in enumerate(TUNE_NOISE):
+        cells = []
+        for di, d in enumerate(TUNE_DURS):
+            hit, tot = score.get((noise, d), (0, 0))
+            pct = 100.0 * hit / tot if tot else 0.0
+            cells.append("%7.1f%%" % pct)
+            cands.append((pct, ni, di, noise, d))
+        print("  %-12s" % noise + "".join(cells))
+
+    # الأعلى إصابةً؛ فإن تقاربت (نصفُ نقطة) فالأشدُّ تحفّظًا: عتبةٌ
+    # أخفضُ تشترط هدوءًا أعمق، ومدّةٌ أطول تشترط سكوتًا أثبت. وTUNE_NOISE
+    # مرتّبةٌ من الأرخى إلى الأشدّ، فكِبَرُ الدليل شِدّة.
+    top = max(c[0] for c in cands)
+    best = max((c for c in cands if c[0] >= top - 0.5),
+               key=lambda c: (c[1], c[2]))
+    best = (best[0], best[3], best[4])
+
+    pct, noise, d = best
+    print("\nأفضلُها: --noise %s --min-silence %s  (%.1f%%)" % (noise, d, pct))
+    if pct < 50:
+        print("وهي دون النصف — فلا سكتاتٍ يُعتَدّ بها في هذا التسجيل.")
+        print("استعمل --guard بدلًا من المسح، واقرأ شرحه في guard_only.")
+    return 0
 
 
 def guard_only(args) -> int:
@@ -253,6 +345,10 @@ def main() -> int:
     ap.add_argument("--ffmpeg", default="ffmpeg",
                     help="مسارُ ffmpeg إن لم يكن في PATH — لاستضافةٍ بلا صلاحيات")
     ap.add_argument("--selftest", action="store_true", help="اختبر الحساب ولا تمسح صوتًا")
+    ap.add_argument("--tune", action="store_true",
+                    help="جرّب العتبات والمُدَد على عيّنة وقُل أيُّها يُصيب")
+    ap.add_argument("--tune-pages", type=int, default=6,
+                    help="كم وجهًا تُعايَر عليه (الافتراضي 6)")
     ap.add_argument("--guard", type=float, metavar="SECONDS",
                     help="بلا صوت: اجعل النهاية بدايةَ التالية ناقصَ هذا القدر")
     args = ap.parse_args()
@@ -263,6 +359,14 @@ def main() -> int:
         ap.error("يلزم TIMINGS (أو --selftest)")
     if args.guard is not None:
         return guard_only(args)
+    if args.tune:
+        if not args.audio:
+            ap.error("المعايرة تحتاج AUDIO_DIR")
+        FFMPEG_SET = args.ffmpeg
+        globals()["FFMPEG"] = FFMPEG_SET
+        if not shutil.which(FFMPEG_SET):
+            sys.exit("لا أجد %s" % FFMPEG_SET)
+        return tune(args)
     if not args.audio:
         ap.error("يلزم AUDIO_DIR (أو --guard للعلاج المؤقّت بلا صوت)")
 
