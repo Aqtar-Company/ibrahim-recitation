@@ -35,13 +35,19 @@
     python3 tools/snap_cuts.py TIMINGS AUDIO_DIR -o snapped.json --report r.csv
     python3 tools/snap_cuts.py --selftest      # لا يحتاج صوتًا ولا ffmpeg
 
-المعايرة أولًا إن كان التسجيل مضغوطًا:\n\n    python3 tools/snap_cuts.py TIMINGS AUDIO_DIR --tune\n\nيحتاج ffmpeg:  brew install ffmpeg
+والمعايرةُ أولًا: عتبةُ الصمت تختلف باختلاف ما لقي التسجيلُ من
+معالجة، ولا تُخمَّن — تُقاس.
+
+    python3 tools/snap_cuts.py TIMINGS AUDIO_DIR --tune
+
+يحتاج ffmpeg:  brew install ffmpeg
 """
 
 import argparse
 import csv
 import json
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -234,29 +240,46 @@ def tune(args):
             continue
         for noise in TUNE_NOISE:
             # أدقُّ مدّةٍ مرّةً واحدة، ثم تُصفّى لكل مدّة.
-            spans_all, _ = scan(audio, noise, min(TUNE_DURS))
+            spans_all, total = scan(audio, noise, min(TUNE_DURS))
+            if not total:
+                continue
+            # ضابطةٌ: نقاطٌ عشوائيةٌ بعددها في الوجه نفسه.
+            #
+            # بدونها لا تعني النسبةُ شيئًا. فعند عتبةٍ مرتاحةٍ يمتلئ
+            # الوجهُ بالفجوات — فجواتُ المقاطع داخل الكلمة — حتى لا تكاد
+            # نقطةٌ تخلو من «سكتةٍ» قريبة، فتبلغ كلُّ عتبةٍ رخوةٍ تسعين
+            # بالمئة وهي لا تعرف حدًّا من وسط كلمة. والمعتبَرُ إذن فضلُ
+            # الحدود على العشوائي لا نسبةُ الحدود وحدها.
+            rnd = random.Random(page)
+            ctrl_pts = [rnd.uniform(0, total) for _ in bounds]
             for d in TUNE_DURS:
                 spans = [s for s in spans_all if s[1] - s[0] >= d]
                 hit = sum(1 for t in bounds
                           if pick(t, spans, args.window) is not None)
-                a, b = score.get((noise, d), (0, 0))
-                score[(noise, d)] = (a + hit, b + len(bounds))
+                ctrl = sum(1 for t in ctrl_pts
+                           if pick(t, spans, args.window) is not None)
+                a, b, c = score.get((noise, d), (0, 0, 0))
+                score[(noise, d)] = (a + hit, b + len(bounds), c + ctrl)
         print("  … %d" % page, flush=True)
 
     if not score:
         sys.exit("لم يُقرأ وجهٌ واحد — تحقّق من مجلد الصوت.")
 
-    print("\nنسبةُ حدود الآيات التي وجدت سكتةً قريبة:\n")
+    print("\nفضلُ حدود الآيات على نقاطٍ عشوائية — «الحدُّ٪ ← الضابطة٪»:\n")
     head = "  عتبة \\ مدّة "
-    print(head + "".join("%8.2fs" % d for d in TUNE_DURS))
+    print(head + "".join("%14.2fs" % d for d in TUNE_DURS))
     cands = []
     for ni, noise in enumerate(TUNE_NOISE):
         cells = []
         for di, d in enumerate(TUNE_DURS):
-            hit, tot = score.get((noise, d), (0, 0))
+            hit, tot, ctrl = score.get((noise, d), (0, 0, 0))
             pct = 100.0 * hit / tot if tot else 0.0
-            cells.append("%7.1f%%" % pct)
-            cands.append((pct, ni, di, noise, d))
+            cpct = 100.0 * ctrl / tot if tot else 0.0
+            cells.append("%7.0f←%-6.0f" % (pct, cpct))
+            # الترجيحُ بالفضل لا بالنسبة: عتبةٌ تُصيب 94 والعشوائيُّ
+            # عندها 90 لا تعرف شيئًا، وأخرى تُصيب 80 والعشوائيُّ 20
+            # تعرف الحدَّ من غيره.
+            cands.append((pct - cpct, pct, ni, di, noise, d))
         print("  %-12s" % noise + "".join(cells))
 
     # الأعلى إصابةً؛ فإن تقاربت (نصفُ نقطة) فالأشدُّ تحفّظًا: عتبةٌ
@@ -264,14 +287,18 @@ def tune(args):
     # مرتّبةٌ من الأرخى إلى الأشدّ، فكِبَرُ الدليل شِدّة.
     top = max(c[0] for c in cands)
     best = max((c for c in cands if c[0] >= top - 0.5),
-               key=lambda c: (c[1], c[2]))
-    best = (best[0], best[3], best[4])
+               key=lambda c: (c[2], c[3]))
+    margin, pct, _, _, noise, d = best
 
-    pct, noise, d = best
-    print("\nأفضلُها: --noise %s --min-silence %s  (%.1f%%)" % (noise, d, pct))
-    if pct < 50:
-        print("وهي دون النصف — فلا سكتاتٍ يُعتَدّ بها في هذا التسجيل.")
-        print("استعمل --guard بدلًا من المسح، واقرأ شرحه في guard_only.")
+    print("\nأفضلُها: --noise %s --min-silence %s" % (noise, d))
+    print("  تُصيب %.1f%% من الحدود، والعشوائيُّ %.1f%% — فضلٌ %.1f نقطة."
+          % (pct, pct - margin, margin))
+    if margin < 25:
+        print("\nوالفضلُ ضئيل: ما تجده هذه العتبةُ فجواتُ نطقٍ لا وقفاتُ آيات،")
+        print("فالنقلُ إليها نقلٌ إلى موضعٍ لا يعني شيئًا. استعمل --guard.")
+    elif pct < 60:
+        print("\nوهي تُصيب أقلَّ من ثلثين: ما لا تجده يبقى على تقديره ويُذكر")
+        print("في التقرير، فيُسمَع بالأذن.")
     return 0
 
 
