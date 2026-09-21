@@ -290,7 +290,10 @@ def tune(args):
                key=lambda c: (c[2], c[3]))
     margin, pct, _, _, noise, d = best
 
-    print("\nأفضلُها: --noise %s --min-silence %s" % (noise, d))
+    # بعلامة المساواة لا بفراغ: القيمةُ تبدأ بشَرطة، فـ argparse يحسبها
+    # اسمَ خيارٍ لا قيمةً له ويقف على «expected one argument». والسطرُ
+    # المطبوع هنا يُنسَخ ويُلصَق كما هو، فليُلصَق عاملًا.
+    print("\nأفضلُها: --noise=%s --min-silence %s" % (noise, d))
     print("  تُصيب %.1f%% من الحدود، والعشوائيُّ %.1f%% — فضلٌ %.1f نقطة."
           % (pct, pct - margin, margin))
     if margin < 25:
