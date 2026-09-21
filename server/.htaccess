@@ -1,0 +1,37 @@
+# يُرفَع إلى مجلد الصوت على الخادم: ~/domains/ibrahimquran.com/public_html/quran/
+#
+# قاعدتان متقابلتان:
+#
+#   الفهرسُ لا يُخزَّن  — هو الذي يُعلِم بالتغيير، فلو خُزِّن لم يصل
+#                       الخبرُ إلى أحد. ومعه بقيّةُ ملفات JSON/CSV.
+#
+#   والصوتُ يُخزَّن سنةً — رابطه يحمل بصمته (`?v=…`)، فإن عُدِّل الملف
+#                       تغيّر الرابط وصار رابطًا لم يُرَ قطّ فيُجلَب.
+#                       ولا يقع أن يُخزَّن قديمٌ تحت رابط جديد.
+#
+# وبغير هذا الملف يختار أباتشي بنفسه، وقد يخزّن الفهرس فلا يصل تحسينٌ
+# إلى أحد حتى تنتهي مدّةٌ لا تعرفها.
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(json|csv)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  <FilesMatch "\.mp3$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # من يدمج التلاوة في تطبيقٍ على نطاقٍ آخر يحتاج هذا ليقرأ الفهرس
+  # من المتصفّح أصلًا. والملفات عامّةٌ بترخيص CC BY، فلا شيء يُحمى.
+  <FilesMatch "\.(json|csv|mp3)$">
+    Header set Access-Control-Allow-Origin "*"
+  </FilesMatch>
+</IfModule>
+
+# القفزُ إلى آيةٍ في وسط وجهٍ يطلب مدًى من الملف لا الملف كلَّه.
+# أباتشي يدعمه افتراضيًّا، ويُصرَّح به هنا لئلّا تُطفئه إعدادةٌ أعلى.
+<IfModule mod_headers.c>
+  <FilesMatch "\.mp3$">
+    Header set Accept-Ranges "bytes"
+  </FilesMatch>
+</IfModule>

@@ -1,0 +1,55 @@
+في هذا المستودع شيئان يختلف حكمهما، فلكلٍّ ترخيصُه.
+
+══════════════════════════════════════════════════════════════════════
+١ — التلاوة والتوقيتات والتوثيق
+══════════════════════════════════════════════════════════════════════
+
+تلاوةُ د. إبراهيم حسن، وما في `data/` من توقيتاتٍ ومقاطعَ وخرائط،
+وملفاتُ التوثيق (`README.md` و`INTEGRATION.md` و`PROMPT.md` وغيرها):
+
+    Creative Commons Attribution 4.0 International  (CC BY 4.0)
+    https://creativecommons.org/licenses/by/4.0/deed.ar
+    النصّ الكامل: https://creativecommons.org/licenses/by/4.0/legalcode.ar
+
+لك أن تنسخها وتوزّعها وتعدّل عليها وتبني عليها، في أي وسيط وبأي صيغة،
+**لأي غرضٍ بما فيه التجاري**، بشرطٍ واحد:
+
+    أن تنسب التلاوة إلى **د. إبراهيم حسن**، وأن تشير إلى مصدرها:
+    https://github.com/Aqtar-Company/ibrahim-recitation
+
+ولا يُشترط عليك أن ترخّص ما تبنيه بالترخيص نفسه، ولا أن تفتح مصدره.
+
+**ملفاتُ الصوت ليست في هذا المستودع** — هي على خادم ibrahimquran.com،
+ويسري عليها هذا الترخيص نفسه. اقرأ في README كيف تجلبها، وكيف تتابع
+تحديثها حين تُحسَّن.
+
+══════════════════════════════════════════════════════════════════════
+٢ — الأدوات (كل ما في `tools/`)
+══════════════════════════════════════════════════════════════════════
+
+MIT License
+
+Copyright (c) 2026 Aqtar Company
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+══════════════════════════════════════════════════════════════════════
+
+ونصُّ القرآن الكريم نفسه لا يملكه أحد.
